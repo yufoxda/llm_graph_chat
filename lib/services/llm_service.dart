@@ -4,11 +4,9 @@ import 'secure_storage_service.dart';
 import '../models/chat_node.dart';
 import '../models/graph_session.dart';
 import './connecter/gemini.dart';
+import './connecter/lmStudio.dart';
 
 class LlmService {
-
-  static String _baseUrl = 'https://generativelanguage.googleapis.com/v1beta';
-  //'http://localhost:1234/v1';
   // 利用可能なモデルのリスト
   static const Map<String, Map<String, dynamic>> availableModels = {
     'gemini': {
@@ -27,7 +25,7 @@ class LlmService {
     'LM studio': {
       'base': 'http://localhost:1234/v1',
       'models': [
-        'gpt-oss-20b',
+        'openai/gpt-oss-20b',
       ],
     },
   };
@@ -67,9 +65,27 @@ class LlmService {
 
   Future<String> generateResponse(GraphSession session, ChatNode currentNode) async {
     final chatHistory = _buildChatHistory(session, currentNode);
+    
+    // 選択されたモデルに基づいて適切なSenderを選択
+    if (_selectedModelName != null) {
+      // Geminiモデルかどうかをチェック
+      final geminiModels = availableModels['gemini']?['models'] as List<String>?;
+      if (geminiModels != null && geminiModels.contains(_selectedModelName)) {
+        final geminiSender = GeminiSender(_apiKey!, _selectedModelName!, _secureStorageService);
+        return await geminiSender.generateResponse(session, chatHistory);
+      }
+      
+      // LM Studioモデルかどうかをチェック
+      final lmStudioModels = availableModels['LM studio']?['models'] as List<String>?;
+      if (lmStudioModels != null && lmStudioModels.contains(_selectedModelName)) {
+        final lmStudioSender = LmstudioSender(_apiKey ?? '', _selectedModelName!, _secureStorageService);
+        return await lmStudioSender.generateResponse(session, chatHistory);
+      }
+    }
+    
+    // デフォルトはGeminiを使用
     final geminiSender = GeminiSender(_apiKey!, _selectedModelName!, _secureStorageService);
     return await geminiSender.generateResponse(session, chatHistory);
-
   }
 // チャット履歴を構築するユーティリティ
   List<Map<String, dynamic>> _buildChatHistory(GraphSession session, ChatNode currentNode) {

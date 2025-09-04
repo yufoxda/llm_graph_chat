@@ -2,8 +2,9 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../secure_storage_service.dart';
 import '../../models/graph_session.dart';
+import 'model_interface.dart';
 
-class GeminiSender{
+class GeminiSender implements ModelInterface {
   static const String _baseUrl = 'https://generativelanguage.googleapis.com/v1beta';
   String? _apiKey;
   String? _selectedModelName;

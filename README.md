@@ -29,6 +29,9 @@ flutter pub run build_runner build --delete-conflicting-outputs
 - ノードの種類・色の追加
 - 全体的な体験の向上
 
-<!-- curl http://localhost:1234/v1/chat/completions -H "Content-Type: application/json" -d "{ \"model\": \"gpt-oss-20b\", \"messages\": [{ \"role\": \"system\", \"content\": \"日本語で答えて\" }, { \"role\": \"user\", \"content\": \"あなたは誰？\" }], \"temperature\": 0.7, \"max_tokens\": 1024, \"stream\": false }" -->
 
-AIzaSyCQvwNO8ATTeNpOILaFLpawTr8wvrnqQr8
+
+## cors回避
+```
+flutter run -d chrome --web-browser-flag="--disable-web-security" --web-browser-flag="--user-data-dir=temp"
+```
