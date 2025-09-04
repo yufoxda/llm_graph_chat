@@ -3,22 +3,34 @@ import 'package:http/http.dart' as http;
 import 'secure_storage_service.dart';
 import '../models/chat_node.dart';
 import '../models/graph_session.dart';
+import './connecter/gemini.dart';
 
 class LlmService {
-  static const String _baseUrl = 'https://generativelanguage.googleapis.com/v1beta';
-  
-  // 利用可能なモデルのリスト
-  static const List<String> availableModels = [
-    'gemini-2.5-pro',
-    'gemini-2.5-flash',
-    'gemini-2.5-flash-lite-preview-06-17',
-    'gemini-2.0-flash-001',
-    'gemini-2.0-flash-lite-001',
-    'gemini-1.5-pro-002',
-    'gemini-1.5-flash-002',
-    'gemini-1.5-flash-8b-001',
 
-  ];
+  static String _baseUrl = 'https://generativelanguage.googleapis.com/v1beta';
+  //'http://localhost:1234/v1';
+  // 利用可能なモデルのリスト
+  static const Map<String, Map<String, dynamic>> availableModels = {
+    'gemini': {
+      'base': 'https://generativelanguage.googleapis.com/v1beta',
+      'models': [
+        'gemini-2.5-pro',
+        'gemini-2.5-flash',
+        'gemini-2.5-flash-lite-preview-06-17',
+        'gemini-2.0-flash-001',
+        'gemini-2.0-flash-lite-001',
+        'gemini-1.5-pro-002',
+        'gemini-1.5-flash-002',
+        'gemini-1.5-flash-8b-001',
+      ],
+    },
+    'LM studio': {
+      'base': 'http://localhost:1234/v1',
+      'models': [
+        'gpt-oss-20b',
+      ],
+    },
+  };
 
   // デフォルトモデル
   static const String defaultModel = 'gemini-2.5-flash-lite-preview-06-17';
@@ -27,10 +39,14 @@ class LlmService {
   String? _apiKey;
   String? _selectedModelName;
 
+  // コンストラクタ
   LlmService(this._secureStorageService);
 
   List<String> getAvailableModels() {
-    return List.from(availableModels);
+    return availableModels.values
+      .map((v) => v['models'] as List<String>)
+      .expand((models) => models)
+      .toList();
   }
 
   Future<void> initialize() async {
@@ -50,86 +66,12 @@ class LlmService {
   }
 
   Future<String> generateResponse(GraphSession session, ChatNode currentNode) async {
-    if (_apiKey == null || _apiKey!.isEmpty) {
-      return 'Error: API Key not set.';
-    }
+    final chatHistory = _buildChatHistory(session, currentNode);
+    final geminiSender = GeminiSender(_apiKey!, _selectedModelName!, _secureStorageService);
+    return await geminiSender.generateResponse(session, chatHistory);
 
-    if (_selectedModelName == null || _selectedModelName!.isEmpty) {
-      return 'Error: Model not selected.';
-    }
-
-    try {
-      final url = Uri.parse('$_baseUrl/models/$_selectedModelName:generateContent?key=$_apiKey');
-      final chatHistory = _buildChatHistory(session, currentNode);
-
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'contents': chatHistory,
-        }),
-      );
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return _extractResponseText(data);
-      } else {
-        final error = jsonDecode(response.body);
-        throw Exception(error['error']['message'] ?? 'Unknown error occurred');
-      }
-    } catch (e) {
-      print('Error generating LLM response: $e');
-      if (e.toString().contains('API key not valid')) {
-        return 'Error: Invalid API Key. Please check your API Key in settings.';
-      }
-      return 'Error: Could not connect to LLM. ${e.toString()}';
-    }
   }
-
-  String _extractResponseText(Map<String, dynamic> data) {
-    try {
-      final candidates = data['candidates'];
-      if (candidates is List && candidates.isNotEmpty) {
-        for (final cand in candidates) {
-          if (cand is Map<String, dynamic>) {
-            final content = cand['content'];
-            if (content is Map<String, dynamic>) {
-              final parts = content['parts'];
-              if (parts is List && parts.isNotEmpty) {
-                for (final p in parts) {
-                  final text = (p is Map<String, dynamic>) ? p['text'] : null;
-                  if (text is String && text.trim().isNotEmpty) {
-                    return text;
-                  }
-                }
-              }
-            }
-            // Fallbacks occasionally seen in responses
-            final outputText = cand['output_text'];
-            if (outputText is String && outputText.trim().isNotEmpty) {
-              return outputText;
-            }
-            final text = cand['text'];
-            if (text is String && text.trim().isNotEmpty) {
-              return text;
-            }
-          }
-        }
-      }
-      // Top-level fallbacks
-      if (data['output_text'] is String && (data['output_text'] as String).trim().isNotEmpty) {
-        return data['output_text'];
-      }
-      if (data['text'] is String && (data['text'] as String).trim().isNotEmpty) {
-        return data['text'];
-      }
-      return 'Error: No response text from LLM.';
-    } catch (e) {
-      print('Error extracting response text: $e');
-      return 'Error: Invalid response format from LLM.';
-    }
-  }
-
+// チャット履歴を構築するユーティリティ
   List<Map<String, dynamic>> _buildChatHistory(GraphSession session, ChatNode currentNode) {
     final history = <Map<String, dynamic>>[];
     ChatNode? node = currentNode;
