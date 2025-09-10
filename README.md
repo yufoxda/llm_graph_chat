@@ -28,3 +28,10 @@ flutter pub run build_runner build --delete-conflicting-outputs
 - ストリーム出力
 - ノードの種類・色の追加
 - 全体的な体験の向上
+
+
+
+## cors回避
+```
+flutter run -d chrome --web-browser-flag="--disable-web-security" --web-browser-flag="--user-data-dir=temp"
+```
